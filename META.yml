@@ -1,0 +1,17 @@
+--- #YAML:1.0
+name:                YAML-Logic
+version:             0.01
+abstract:            Simple boolean logic in YAML
+license:             ~
+generated_by:        ExtUtils::MakeMaker version 6.31
+distribution_type:   module
+requires:     
+    Log::Log4perl:                 1
+    Safe:                          2.11
+    Template:                      2.15
+    YAML::Syck:                    0.97
+meta-spec:
+    url:     http://module-build.sourceforge.net/META-spec-v1.2.html
+    version: 1.2
+author:
+    - Mike Schilli <cpan@perlmeister.com>
