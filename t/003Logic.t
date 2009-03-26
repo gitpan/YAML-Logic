@@ -54,6 +54,12 @@ eval_test('rule:
   - ==: 13
 ', {}, 0, "== op");
 
+  # op: ==
+eval_test('rule:
+  - 13
+  - ==: 13
+', {}, 1, "== op");
+
   # op: ne
 eval_test('rule:
   - foo
@@ -90,10 +96,46 @@ eval_test(q{rule:
   - '>': 123
 }, {}, 1, "> op");
 
+  # op: <
+eval_test(q{rule:
+  - 123
+  - '>': 456
+}, {}, 0, "> op");
+
+  # op: <
+eval_test(q{rule:
+  - 456
+  - '<=': 123
+}, {}, 0, "<= op");
+
+  # op: <=
+eval_test(q{rule:
+  - 45
+  - '<=': 123
+}, {}, 1, "<= op");
+
+  # op: <
+eval_test(q{rule:
+  - 456
+  - '<': 123
+}, {}, 0, "< op");
+
+  # op: <
+eval_test(q{rule:
+  - 123
+  - '<': 456
+}, {}, 1, "< op");
+
   # op: regex
 eval_test('rule:
   - 456
   - like: "\d+"
+', {}, 1, "regex");
+
+  # op: regex
+eval_test('rule:
+  - 456
+  - =~: "\d+"
 ', {}, 1, "regex");
 
   # op: regex
@@ -111,6 +153,11 @@ eval_test('rule:
   - aBc
   - like: (?i)abc
 ', {}, 1, "regex /i");
+
+eval_test('rule:
+  - aBc
+  - like: "^aBc$"
+', {}, 1, "anchored match");
 
 eval {
 eval_test(q#rule:
@@ -206,6 +253,42 @@ eval_test(q{rule:
     - $var
     - bar
 }, {var => "abc"}, 1, "logical or");
+
+  # Undef
+eval_test(q{rule:
+    - "$var.defined"
+    - ""
+}, { var => undef }, 1, "undef");
+
+eval_test(q{rule:
+    - "!$var.defined"
+    - 1
+}, { var => undef }, 1, "undef");
+
+eval_test(q{rule:
+    - $var.defined
+    - 1
+}, { var => 0 }, 1, "undef");
+
+eval_test(q{rule:
+    - "!$var.defined"
+    - 1
+}, { var => 0 }, 0, "undef");
+
+eval_test(q{rule:
+    - "!${var.defined}"
+    - 1
+}, { var => 0 }, 0, "undef");
+
+eval_test(q{rule:
+    - "foo$var"
+    - "bar$var"
+}, { var => 0 }, 0, "double interpolation");
+
+eval_test(q{rule:
+    - "foo$var"
+    - "foo$var"
+}, { var => 1 }, 1, "double interpolation");
 
 ###########################################
 sub eval_test {
