@@ -8,7 +8,7 @@ use Log::Log4perl qw(:easy);
 use Template;
 use Safe;
 
-our $VERSION = "0.02";
+our $VERSION = "0.03";
 our %OPS = map { $_ => 1 }
     qw(eq ne lt gt < > <= >= == =~ like);
 
@@ -20,6 +20,7 @@ sub new {
     my $self = {
         safe => Safe->new(),
         template => Template->new(),
+        error => "",
         %options,
     };
 
@@ -114,31 +115,56 @@ sub evaluate_single {
     $op = lc $op ;
     $op = '=~' if $op eq "like";
 
+    $self->error("");
+
     if(! exists $OPS{ $op }) {
         LOGDIE "Unknown op: $op";
     }
 
     $field = '"' . esc($field, '"') . '"';
+    my $cmd;
 
     if($op eq "=~") {
         if($value =~ /\?\{/) {
             LOGDIE "Trapped ?{ in regex.";
         }
-        #DEBUG "Match against (before): $value";
+        $value =~ s#(\\\\|/)#\\$1#g;
+          # If we ever get something like \\/, slap another backslash
+          # onto the "/" to mask it.
+        $value =~ s#(\\+)/# (length($1) % 2) ? "$1/" : "$1\\/"#ge;
         $value = qr($value);
-        DEBUG "Matching '$field' against: $value";
-        my $res = $self->{safe}->reval("$field =~ /$value/");
-        return ($not ? (!$res) : $res);
+        $cmd = "$field =~ /$value/";
+    } else {
+        $value = '"' . esc($value, '"') . '"';
+        $cmd = "$field $op $value";
     }
 
-    $value = '"' . esc($value, '"') . '"';
-    my $cmd = "$field $op $value";
-    DEBUG "Compare: $cmd";
+    INFO "Test: $cmd";
     my $res = $self->{safe}->reval($cmd);
+
     if($@) {
         LOGDIE "$@";
     }
+
+    if(!$res and !$not or
+        $res  and $not) {
+        $res = "" if !defined $res;
+        $self->error("Test [$cmd] returned [$res]");
+    }
+
     return ($not ? (!$res) : $res);
+}
+
+###########################################
+sub error {
+###########################################
+    my($self, $error) = @_;
+
+    if(defined $error) {
+        $self->{error} = $error;
+    }
+
+    return $self->{error};
 }
 
 ###############################################
@@ -166,7 +192,7 @@ YAML::Logic - Simple boolean logic in YAML
 
 =head1 SYNOPSIS
 
-    use YAML qw(Load);
+    use YAML::Syck qw(Load);
     use YAML::Logic;
 
     my $logic = YAML::Logic->new();
@@ -288,8 +314,8 @@ In YAML::Logic syntax, these two ANDed comparisons are written as
 
 in a YAML file.
 
-Interpolation is done by the C<Template> module, so all the magic it does
-for arrays and hashes applies:
+Interpolation is done by the C<Template Toolkit>, so all the magic 
+it does for arrays and hashes applies:
 
     rule:
       - $hash.somekey
@@ -329,11 +355,15 @@ supported:
     lt 
     gt 
     < 
+    <=
     > 
+    >=
     == 
+    !=
     =~ like
 
-The way to specify a different operator is to put it as key into a hash:
+The way to specify a different operator C<$op> is to put it as key 
+into a hash:
 
     [ $var, { $op, $value } ]
 
@@ -592,8 +622,9 @@ blank line, which contains whitespace characters:
     Code: YAML_PARSE_ERR_NO_FINAL_NEWLINE
 
 To avoid this, either use a YAML file, in which not using unnecessary
-indentation will feel natural, make sure there's no last line containing
-just whitespace, before feeding it to the YAML parser:
+indentation will feel natural. When using YAML strings, make sure there's 
+no last line containing just whitespace, before feeding it to the 
+YAML parser:
 
     my $yaml_string = q{
           # is $var equal to "foo"?
@@ -629,6 +660,59 @@ which correctly parses to
     [$var, "!blah!"]
 
 within the C<rule> hash entry instead.
+
+=head1 ERROR HANDLING
+
+If a rule fails, the error() method can be used to obtain a detailed
+textual description on why a comparison or a regex match failed.
+
+    if( $logic->evaluate( $data->{rule}, 
+                          { var => "foo" }) ) {
+        print "True!\n";
+    } else {
+        print "Failed, reason is: ", $logic->error();
+    }
+
+This will print something like
+
+    Failed, reason is: Test ["foo" eq "bar"] returned []
+
+saying the when it compared "foo" to "bar", the result was the empty
+string (Perl's idea of 'false').
+
+=head1 TROUBLESHOOTING
+
+=over 4
+
+=item B<Error Message: Unknown type: HASH(0x857d51c) at YAML/Logic.pm>
+
+This means that you've fed a hash to YAML::Logic. For example, if your
+YAML file says 
+
+    rule:
+      - "foo"
+      - "bar"
+
+you've probably read the YAML file like
+
+    my $data = LoadFile( $file );
+
+and now the data looks like 
+
+    { rule => ["foo", "bar"] }
+
+which, when you feed it unmodified to YAML::Logic as in
+
+    $logic->evaluate( $data );
+
+presents the "rule" field to YAML::Logic, which it doesn't understand. 
+Pass the content of the rule to YAML::Logic instead:
+
+    $logic->evaluate( $data->{rule} );
+
+and it will work as expected.
+
+=back
 
 =head1 LEGALESE
 
