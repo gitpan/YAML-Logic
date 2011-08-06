@@ -10,7 +10,7 @@ use Test::More qw(no_plan);
 use Data::Dumper;
 use Log::Log4perl qw(:easy);
 
-#Log::Log4perl->easy_init($INFO);
+# Log::Log4perl->easy_init( {level => $DEBUG, layout => "%F{1}:%L: %m%n" } );
 
   # Not equal
 eval_test("rule:
@@ -346,6 +346,153 @@ eval_test(q{rule:
     - "$var"
     - like: "\\w"
 }, { var => "a" }, 1, "backslash/quote madness");
+
+eval_test(q{rule:
+  - or
+  -
+    - 1
+    - 2
+    - 3
+    - 3
+}, {}, 1, "simple or");
+
+eval_test(q{rule:
+  - or
+  -
+    - 1
+    - 2
+    - 3
+    - 4
+}, {}, 0, "simple or");
+
+eval_test(q{rule:
+  - or
+  -
+    - 1
+    - 2
+    - and
+    -
+      - 4
+      - 4
+      - 5
+      - 5
+}, {}, 1, "or-and");
+
+eval_test(q{rule:
+  - or
+  -
+    - and
+    -
+      - 4
+      - 4
+      - 5
+      - 5
+    - 1
+    - 2
+}, {}, 1, "or-and");
+
+eval_test(q{rule:
+  - or
+  -
+    - and
+    -
+      - 4
+      - 4
+      - 5
+      - 6
+    - 1
+    - 1
+}, {}, 1, "or-and");
+
+eval_test(q{rule:
+  - or
+  -
+    - and
+    - 
+      - 2
+      - 3
+      - 3
+      - 4
+    - and
+    - 
+      - 2
+      - 2
+      - 3
+      - 3
+}, {}, 1, "or-and-and");
+
+eval_test(q{rule:
+  - or
+  -
+    - and
+    - 
+      - 2
+      - 3
+      - 3
+      - 4
+    - or
+    - 
+      - $foo
+      - $bar
+      - $foo
+      - $foo
+}, { foo => "1", bar => "2" }, 1, "or-and-or");
+
+eval_test(q{rule:
+  - or
+  -
+    - or
+    - 
+      - 1
+      - 2
+      - 3
+      - 4
+    - or
+    - 
+      - 5
+      - 6
+      - 7
+      - 8
+}, {}, 0, "or-or-or");
+
+eval_test(q{rule:
+  - or
+  -
+    - or
+    - 
+      - 1
+      - 2
+      - 3
+      - 4
+    - or
+    - 
+      - 5
+      - 6
+      - 8
+      - 8
+}, {}, 1, "or-or-or");
+
+eval_test(q{rule:
+  - and
+  -
+    - 1
+    - 1
+    - 2
+    - 2
+    - 3
+    - 3
+}, {}, 1, "and");
+
+eval_test(q{rule:
+  - and
+  -
+    - 1
+    - 1
+    - 2
+    - 2
+    - 3
+    - 4
+}, {}, 0, "and");
 
 ###########################################
 sub eval_test {
